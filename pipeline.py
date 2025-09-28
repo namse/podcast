@@ -37,6 +37,20 @@ class NewPipelineManager:
                 "input": "out/step2_timed_subtitles.json",
                 "output": "out/podcast.vtt",
                 "description": "시간 정보가 포함된 자막을 WebVTT 형식으로 변환"
+            },
+            4: {
+                "name": "자막 그룹핑",
+                "script": "step4_generate_groups.py",
+                "input": "out/step2_timed_subtitles.json",
+                "output": "out/step4_subtitle_groups.txt",
+                "description": "Gemini Flash Latest를 사용한 의미론적 자막 그룹핑"
+            },
+            5: {
+                "name": "이미지 개념 분석",
+                "script": "step5_generate_image_concepts.py",
+                "input": "out/step4_subtitle_groups.txt",
+                "output": "out/step5_image_concepts.txt",
+                "description": "Gemini 2.5 Pro를 사용한 시청자 흥미도 기반 이미지 개념 분석"
             }
         }
 
@@ -166,6 +180,14 @@ class NewPipelineManager:
                 "--output", step["output"],
                 "--validate",
                 "--check-vtt"
+            ])
+        elif step_num == 4:
+            cmd.extend([
+                "--input", step["input"]
+            ])
+        elif step_num == 5:
+            cmd.extend([
+                "--input", step["input"]
             ])
 
         # 추가 인자가 있으면 추가

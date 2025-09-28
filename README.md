@@ -9,6 +9,7 @@ Gemini AI와 wav2vec2를 사용하여 오디오 파일과 텍스트 대본으로
 1. **스텝 1**: Gemini AI를 사용한 지능적 텍스트 분할 (의미 단위, 2줄 자막)
 2. **스텝 2**: wav2vec2를 사용한 시간 정렬
 3. **스텝 3**: WebVTT 형식으로 변환
+4. **스텝 4**: Gemini 2.5 Flash Image를 사용한 구간별 이미지 생성
 
 각 스텝은 독립적으로 실행 가능하며, 읽기 편한 고품질 자막을 생성합니다.
 
@@ -52,12 +53,15 @@ podcast/
 ├── step1_gemini_text_split.py  # 1단계: Gemini 텍스트 분할
 ├── step2_wav2vec2_timing.py    # 2단계: wav2vec2 시간 정렬
 ├── step3_generate_vtt.py       # 3단계: WebVTT 생성
-├── out/                        # 결과물 디렉토리
-│   ├── step1_subtitles.json    # 1단계 결과 (분할된 자막)
-│   ├── step2_timed_subtitles.json # 2단계 결과 (시간 정보 포함)
-│   └── podcast.vtt             # 최종 WebVTT 파일
-├── archive/                    # 기존 시스템 결과물
-└── old_system/                 # 기존 시스템 스크립트들
+├── step4_generate_images.py    # 4단계: 이미지 생성
+└── out/                        # 결과물 디렉토리
+    ├── step1_subtitles.json    # 1단계 결과 (분할된 자막)
+    ├── step2_timed_subtitles.json # 2단계 결과 (시간 정보 포함)
+    ├── podcast.vtt             # 최종 WebVTT 파일
+    └── images/                 # 4단계 결과 (생성된 이미지들)
+        ├── 0.jpg               # 0초 시작 이미지
+        ├── 25000.jpg           # 25초 시작 이미지
+        └── image_metadata.json # 이미지 메타데이터
 ```
 
 ## 🚀 사용법
@@ -80,6 +84,9 @@ python pipeline.py step --step-num 2
 
 # 스텝 3: WebVTT 생성
 python pipeline.py step --step-num 3
+
+# 스텝 4: 이미지 생성
+python pipeline.py step --step-num 4
 ```
 
 ### 특정 스텝부터 실행
@@ -111,10 +118,12 @@ python pipeline.py retry1
 ### 스텝 0: 오디오-텍스트 정렬
 
 **입력**:
+
 - `podcast1.mp3` (오디오 파일)
 - `script_clean.txt` (대본 텍스트)
 
 **출력**:
+
 - `alignment_result_fixed.json` (정렬 결과)
 
 **설명**: wav2vec2 모델을 사용하여 오디오와 텍스트를 시간적으로 정렬합니다.
@@ -127,18 +136,21 @@ python wav2vec2_alignment.py --audio podcast1.mp3 --text script_clean.txt --outp
 ### 스텝 1: 자막 분할
 
 **입력**:
+
 - `alignment_result_fixed.json`
 
 **출력**:
+
 - `step1_split_result.json` (분할된 자막)
 - `step1_progress.json` (진행상황)
 
 **설명**: Gemini AI를 사용하여 긴 텍스트를 자막에 적합한 길이로 지능적으로 분할합니다.
 
 **특징**:
+
 - 의미 단위로 분할
 - 최대 2줄, 각 줄 최대 25글자
-- AI 결과 검증 및 fallback 처리
+- AI 결과 검증
 - 진행상황 저장으로 중단 시 이어서 처리 가능
 
 ```bash
@@ -152,9 +164,11 @@ python step1_retry_failed.py --progress step1_progress.json --original alignment
 ### 스텝 2: WebVTT 생성
 
 **입력**:
+
 - `step1_split_result.json`
 
 **출력**:
+
 - `podcast1.vtt` (최종 WebVTT 파일)
 
 **설명**: 분할된 자막을 표준 WebVTT 형식으로 변환합니다.
@@ -162,6 +176,31 @@ python step1_retry_failed.py --progress step1_progress.json --original alignment
 ```bash
 # 직접 실행 (고급 사용자용)
 python step2_generate_webvtt.py --input step1_split_result.json --output podcast1.vtt --validate
+```
+
+### 스텝 4: 이미지 생성
+
+**입력**:
+
+- `step2_timed_subtitles.json`
+
+**출력**:
+
+- `out/images/` (생성된 이미지들)
+- `image_metadata.json` (이미지 메타데이터)
+
+**설명**: Gemini 2.5 Flash Image Preview를 사용하여 자막 구간별로 적절한 이미지를 생성합니다.
+
+**특징**:
+
+- 하이브리드 그룹핑: 25초 기본 간격, 의미 단위 고려
+- AI 키워드 추출: 각 구간의 핵심 내용 분석
+- 한국어 팟캐스트 최적화: 교육용 콘텐츠에 적합한 스타일
+- 파일명: 시작 시간의 밀리초 (예: 25000.jpg = 25초 시작)
+
+```bash
+# 직접 실행 (고급 사용자용)
+python step4_generate_images.py --input out/step2_timed_subtitles.json --output out/images
 ```
 
 ## ⚙️ 고급 옵션
@@ -190,6 +229,7 @@ Error: 429 You exceeded your current quota
 ```
 
 **해결법**:
+
 - 잠시 기다린 후 재시도
 - `python pipeline.py retry1` 명령으로 실패한 부분만 재처리
 
@@ -200,6 +240,7 @@ ModuleNotFoundError: No module named 'torch'
 ```
 
 **해결법**:
+
 ```bash
 python pipeline.py check  # 의존성 확인
 pip install torch torchaudio transformers librosa soundfile google-generativeai python-dotenv
@@ -226,10 +267,12 @@ python pipeline.py step --step-num 1
 
 ## 📋 출력 파일 설명
 
-- **`alignment_result_fixed.json`**: 원본 오디오-텍스트 정렬 결과
-- **`step1_progress.json`**: 스텝 1 진행상황 (중간 결과 포함)
-- **`step1_split_result.json`**: 최종 분할된 자막 데이터
-- **`podcast1.vtt`**: 완성된 WebVTT 자막 파일
+- **`step1_subtitles.json`**: 1단계 결과 (분할된 자막)
+- **`step2_timed_subtitles.json`**: 2단계 결과 (시간 정보 포함)
+- **`podcast.vtt`**: 3단계 결과 (완성된 WebVTT 자막 파일)
+- **`out/images/`**: 4단계 결과 (생성된 이미지들)
+  - `0.jpg, 25000.jpg, ...`: 각 시간대별 이미지
+  - `image_metadata.json`: 이미지 생성 메타데이터
 
 ## 💡 팁
 
